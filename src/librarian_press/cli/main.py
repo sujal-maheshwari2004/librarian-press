@@ -115,6 +115,35 @@ def _cmd_infer(args):
     print(tokenizer.decode(out[0].tolist()))
 
 
+def _cmd_export(args):
+    from ..serve.export import export_model
+
+    cfg = load_config(args.config)
+    name = args.name or cfg.name
+    export_model(
+        cfg, name=name, checkpoint=args.checkpoint, source=getattr(args, "from"),
+        temperature=args.temperature, top_k=args.top_k, max_new_tokens=args.max_new_tokens,
+    )
+
+
+def _cmd_chat(args):
+    from ..serve.chat import run_chat
+
+    run_chat(args.model)
+
+
+def _cmd_models(args):
+    from ..serve.registry import list_models, models_dir
+
+    names = list_models()
+    if not names:
+        print(f"No models in {models_dir()}. Export one: librarian-press export --config <cfg> --name <name>")
+        return
+    print(f"Models in {models_dir()}:")
+    for n in names:
+        print(f"  {n}")
+
+
 def _require_mode(cfg, needed):
     if needed not in (cfg.mode, "both") and cfg.mode != needed:
         # allow 'both' configs to run a single phase
@@ -164,6 +193,24 @@ def build_parser() -> argparse.ArgumentParser:
     inf.add_argument("--temperature", type=float, default=1.0)
     inf.add_argument("--top-k", type=int, default=50, dest="top_k")
     inf.set_defaults(func=_cmd_infer)
+
+    ex = sub.add_parser("export", help="bundle a trained run into a portable model folder")
+    ex.add_argument("--config", required=True)
+    ex.add_argument("--name", default=None, help="model name in the registry (default: config name)")
+    ex.add_argument("--checkpoint", default=None, help="checkpoint to export (default: best/last)")
+    ex.add_argument("--from", dest="from", choices=["pretrain", "sft"], default=None,
+                    help="which half of the run to export (default: sft if present)")
+    ex.add_argument("--temperature", type=float, default=0.8)
+    ex.add_argument("--top-k", type=int, default=40, dest="top_k")
+    ex.add_argument("--max-new-tokens", type=int, default=256, dest="max_new_tokens")
+    ex.set_defaults(func=_cmd_export)
+
+    ch = sub.add_parser("chat", help="chat with an exported model (Ollama-style REPL)")
+    ch.add_argument("model", help="exported model name")
+    ch.set_defaults(func=_cmd_chat)
+
+    ls = sub.add_parser("models", help="list exported models")
+    ls.set_defaults(func=_cmd_models)
 
     return p
 

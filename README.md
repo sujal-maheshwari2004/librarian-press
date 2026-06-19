@@ -35,6 +35,31 @@ lpress eval      --config <cfg> [--checkpoint CKPT]
 lpress infer     --config <cfg> --checkpoint CKPT [--prompt "..."]
 ```
 
+### Export & chat (Ollama-style)
+
+Package a trained run into a portable, self-contained model folder, then chat
+with it from the terminal:
+
+```bash
+# 1. bundle the trained model into the local registry (~/.librarian-press/models/<name>)
+librarian-press export --config configs/run_both.json --name my-bot
+
+# 2. chat with it — streams tokens until you type /bye
+librarian-press chat my-bot
+
+# list everything you've exported
+librarian-press models
+```
+
+`export` consolidates whatever the run produced into a single plain weights file
+(**LoRA/BitFit adapters are merged into the base**), copies the tokenizer, and
+writes a `bundle.json` with the model config + chat prompt template + generation
+defaults. The resulting folder needs nothing from the original run to chat with,
+so it's easy to copy or share. Override the source/checkpoint with
+`--from pretrain|sft` and `--checkpoint`, and the sampling defaults with
+`--temperature` / `--top-k` / `--max-new-tokens`. The registry location can be
+moved with the `LIBRARIAN_PRESS_HOME` environment variable.
+
 All commands accept `--start-from <stage>` (data stages resume via per-stage
 manifests) and the train pipelines accept `--resume <checkpoint>`.
 

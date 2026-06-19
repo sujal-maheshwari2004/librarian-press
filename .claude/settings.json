@@ -21,7 +21,9 @@
       "Bash(sed -i 's/CUDA_VISIBLE_DEVICES\"\\\\] = \"\"/CUDA_VISIBLE_DEVICES\"] = \"-1\"/; s/CUDA_VISIBLE_DEVICES=\"\",/CUDA_VISIBLE_DEVICES=\"-1\",/' tests/_ddp_smoke.py)",
       "Bash(CUDA_VISIBLE_DEVICES=\"-1\" USE_LIBUV=0 PYTHONIOENCODING=utf-8 PYTHONPATH=src python tests/_ddp_smoke.py)",
       "Bash(PYTHONPATH=src python -c \"import librarian_press; from librarian_press.cli.main import build_parser; print\\('import OK', librarian_press.__version__\\)\")",
-      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -m librarian_press.cli.main run --config configs/run_dummy.json)"
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -m librarian_press.cli.main run --config configs/run_dummy.json)",
+      "Bash(rm -rf runs .lp_home)",
+      "Bash(PYTHONPATH=src python -c \"from librarian_press.serve import export_model, run_chat, list_models; from librarian_press.cli.main import build_parser; build_parser\\(\\); print\\('OK'\\)\")"
     ]
   }
 }
