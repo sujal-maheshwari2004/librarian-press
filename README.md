@@ -1,101 +1,299 @@
 # librarian-press
 
-A config-driven framework that turns clean data into trained LLMs. Like the
-printing press did for books, `librarian-press` puts **pretraining and
-fine-tuning of Librarian-family GPT models — at virtually any size — in
-anyone's hands**: you bring clean **Parquet/`.txt`** files and one JSON config,
-and it handles tokenizer training, tokenization, packing, training, evaluation,
-and inference.
+> Bring clean data, get a trained LLM. A config-driven framework for **pretraining
+> and fine-tuning** Librarian-family GPT models — from a few-million-parameter toy
+> to billion-parameter models — driven entirely by one JSON file.
 
-Pretraining and SFT are separable: run one, the other, or both end-to-end.
+Like the printing press did for the written word, `librarian-press` takes LLM
+training out of the lab: you supply cleaned **Parquet/`.txt`** data and a config,
+and it handles tokenizer training → tokenization → packing → training →
+evaluation → inference. Pretraining and supervised fine-tuning (SFT) are
+separable — run one, the other, or both end-to-end.
 
-## Install
+---
+
+## Highlights
+
+- **One config, three modes** — `pretrain`, `sft`, or `both` from a single JSON file.
+- **Bring-your-own data** — local Parquet and `.txt`; no scraping, no hidden cleaning.
+- **Modern architecture** — GPT with RoPE, RMSNorm, SwiGLU MLP, weight tying.
+- **Fine-tuning built in** — LoRA, BitFit, or full fine-tune, with completion-only masked loss.
+- **Resumable pipeline** — every data stage is shard-tracked with atomic, restart-safe manifests.
+- **Multi-GPU** — data-parallel (DDP) via `torchrun`, single-GPU path unchanged.
+- **Export & chat** — bundle a trained run into a portable folder and chat with it, Ollama-style.
+- **Observable** — opt-in Prometheus-style `/metrics` endpoint for Grafana, with zero extra dependencies.
+
+---
+
+## Installation
 
 ```bash
-uv sync            # or: pip install -e .
+pip install librarian-press
 ```
 
-This installs the `librarian-press` command (short alias: `lpress`).
+This provides the `librarian-press` command (short alias **`lpress`**).
 
-## Usage
+**From source (development):**
 
 ```bash
-# Pretrain a base model from raw text
+git clone <repo-url> && cd librarian-fw
+uv sync          # or:  pip install -e .
+```
+
+**Requirements:** Python 3.12–3.13, PyTorch ≥ 2.6 (CUDA build recommended). All
+other dependencies (`numpy`, `tokenizers`, `pyarrow`, `tqdm`, `tensorboard`,
+`requests`) install automatically.
+
+---
+
+## Quickstart
+
+A complete CPU-only run is included for a fast end-to-end smoke test:
+
+```bash
+# pretrain a tiny model, then SFT it, all from bundled fixtures
+librarian-press run --config configs/run_dummy.json
+
+# package the result into a portable model and chat with it
+librarian-press export --config configs/run_dummy.json --name demo
+librarian-press chat demo
+```
+
+For a real run, point a config at your data and go:
+
+```bash
 librarian-press pretrain --config configs/pretrain_130M.json
-
-# Supervised fine-tune an existing base model
-librarian-press sft --config configs/sft_qa_lora.json
-
-# Both, end-to-end (SFT auto-consumes the pretrain checkpoint + tokenizer)
-librarian-press run --config configs/run_both.json     # config mode must be "both"
-
-# Other commands  (lpress is a shorthand for librarian-press)
-lpress tokenizer --config <cfg>                # train tokenizer only
-lpress eval      --config <cfg> [--checkpoint CKPT]
-lpress infer     --config <cfg> --checkpoint CKPT [--prompt "..."]
 ```
 
-### Export & chat (Ollama-style)
+---
 
-Package a trained run into a portable, self-contained model folder, then chat
+## Concepts
+
+**Modes.** The top-level `mode` selects the pipeline:
+
+| Mode | Pipeline |
+|---|---|
+| `pretrain` | ingest → train tokenizer → tokenize → pack → train → eval |
+| `sft` | ingest → prepare (masked) → train → eval |
+| `both` | pretrain, then SFT auto-wired onto the fresh checkpoint + tokenizer |
+
+**Run directory.** Everything for a run lives under `runs/<name>/`:
+
+```text
+runs/<name>/
+  data/          ingested shards, tokenized shards, packed splits
+  manifests/     per-stage progress (resume-safe)
+  tokenizer/     trained tokenizer
+  checkpoints/   pretrain/  and  sft/<method>/   (best.pt, last.pt, step_*.pt)
+  logs/          eval results
+```
+
+Data stages are skipped automatically when their manifest is already complete,
+so re-running a command resumes rather than recomputes.
+
+---
+
+## CLI reference
+
+```text
+librarian-press <command> [options]      # alias: lpress
+```
+
+| Command | Purpose |
+|---|---|
+| `pretrain --config <cfg>` | Run the pretraining pipeline |
+| `sft --config <cfg>` | Run the supervised fine-tuning pipeline |
+| `run --config <cfg>` | Pretrain then SFT end-to-end (config `mode` must be `both`) |
+| `tokenizer --config <cfg>` | Train the tokenizer only |
+| `eval --config <cfg> [--checkpoint CKPT]` | Evaluate a trained checkpoint |
+| `infer --config <cfg> --checkpoint CKPT [--prompt "..."]` | One-off generation / ad-hoc chat |
+| `export --config <cfg> --name NAME` | Bundle a trained run into a portable model |
+| `chat <model-name>` | Interactive streaming chat with an exported model |
+| `models` | List exported models |
+
+### Common options
+
+| Option | Applies to | Meaning |
+|---|---|---|
+| `--start-from <stage>` | `pretrain`, `sft` | Resume the pipeline from a specific stage |
+| `--resume <checkpoint>` | `pretrain`, `sft` | Resume training from a checkpoint |
+| `--cleanup` | `pretrain`, `run` | Delete intermediate artifacts after success (opt-in) |
+| `--metrics-port <port>` | training + `chat` | Expose Prometheus-style metrics (see [Monitoring](#monitoring)) |
+| `--from pretrain\|sft`, `--checkpoint` | `export` | Choose which half / which checkpoint to export |
+| `--temperature`, `--top-k`, `--max-new-tokens` | `export` | Default sampling parameters baked into the bundle |
+
+---
+
+## Configuration
+
+A single JSON file. Shared `model` and `tokenizer` sections, plus a `pretrain`
+and/or `sft` section depending on `mode`.
+
+### Top level
+
+| Field | Type | Notes |
+|---|---|---|
+| `name` | string | Run name; defines `runs/<name>/` |
+| `mode` | enum | `pretrain` · `sft` · `both` |
+| `model` | object | Architecture (below), or `{"config_path": "model_130M.json"}` |
+| `tokenizer` | object | Tokenizer config (below) |
+| `pretrain` | object | Required for `pretrain`/`both` |
+| `sft` | object | Required for `sft`/`both` |
+
+### `model`
+
+| Field | Default | Notes |
+|---|---|---|
+| `vocab_size` | 16000 | Must be `< 65536` (tokens stored as uint16) |
+| `dim` | 512 | Must be divisible by `n_heads`; head dim should be even |
+| `n_layers` | 12 | |
+| `n_heads` | 8 | |
+| `hidden_dim` | 2048 | MLP inner size (commonly `4 × dim`) |
+| `max_seq_len` | 512 | Context length |
+| `dropout` | 0.1 | |
+| `rope_theta` | 10000.0 | RoPE base |
+| `tie_embeddings` | true | Share input/output embeddings |
+
+### `tokenizer`
+
+| Field | Default | Notes |
+|---|---|---|
+| `path` | — | Where the tokenizer is / will be written |
+| `train_if_missing` | false | Pretrain may train one; SFT must reuse an existing one |
+| `vocab_size` | 32000 | Must equal `model.vocab_size` |
+| `min_frequency` | 2 | BPE merge threshold |
+| `special_tokens` | `["<pad>","<bos>","<eos>","<unk>"]` | |
+
+### `training` (per mode)
+
+`lr`, `min_lr`, `warmup_steps`, `total_steps`, `batch_size`, `grad_accum`,
+`weight_decay`, `mixed_precision`, `eval_interval`, `save_interval`, `device`.
+Cosine schedule with warmup; AdamW with decoupled weight decay; AMP + gradient
+accumulation + gradient clipping.
+
+### `pretrain.data`
+
+| Field | Default | Notes |
+|---|---|---|
+| `inputs` | — | List of file paths / globs |
+| `format` | `auto` | `txt` · `parquet` · `auto` |
+| `text_column` | `text` | Parquet column holding text |
+| `txt_granularity` | `line` | `line` (one doc per line) or `document` (whole file) |
+| `seq_len` | 512 | Packed sequence length (`≤ model.max_seq_len`) |
+| `val_frac` / `test_frac` | 0.005 / 0.0 | Deterministic hash split |
+
+### `sft.data`
+
+| Field | Default | Notes |
+|---|---|---|
+| `inputs` | — | `{"train": [...], "val": [...]}` or `{"all": [...]}` |
+| `format` | `auto` | Parquet rows, or JSON-per-line `.txt` |
+| `prompt_template` | `"{prompt}"` | e.g. `"Context: {context}\nQuestion: {question}\nAnswer:"` |
+| `completion_field` | `"completion"` | Dotted/array fields supported, e.g. `answers.text[0]` |
+| `max_prompt_len` / `max_completion_len` | 384 / 128 | Token caps |
+
+### `sft.finetune`
+
+| Field | Default | Notes |
+|---|---|---|
+| `method` | `lora` | `lora` · `bitfit` · `full` |
+| `base_checkpoint` | null | Pretrained weights; auto-wired in `both` |
+| `lora` | `{rank:8, alpha:16, dropout:0.05}` | LoRA hyperparameters |
+| `eval_metric` | `perplexity` | `perplexity` · `exact_match` · `f1` |
+
+### Example (`mode: both`)
+
+```jsonc
+{
+  "name": "my-model",
+  "mode": "both",
+  "model": { "vocab_size": 32000, "dim": 768, "n_layers": 12, "n_heads": 12,
+             "hidden_dim": 3072, "max_seq_len": 1024 },
+  "tokenizer": { "path": "runs/my-model/tokenizer/tokenizer.json",
+                 "train_if_missing": true, "vocab_size": 32000 },
+  "pretrain": {
+    "data": { "inputs": ["./data/corpus/*.parquet"], "text_column": "text",
+              "seq_len": 1024, "val_frac": 0.005 },
+    "training": { "lr": 3e-4, "total_steps": 100000, "batch_size": 32, "grad_accum": 4 }
+  },
+  "sft": {
+    "finetune": { "method": "lora", "base_checkpoint": null, "eval_metric": "f1" },
+    "data": { "inputs": { "train": ["./sft/train/*.parquet"], "val": ["./sft/val/*.parquet"] },
+              "prompt_template": "Q: {question}\nA:", "completion_field": "answer" },
+    "training": { "lr": 2e-4, "total_steps": 5000, "batch_size": 16, "grad_accum": 4 }
+  }
+}
+```
+
+See [`configs/`](configs/) for runnable examples.
+
+---
+
+## Data you provide
+
+You own data cleanliness — the framework parses, it does not scrape or quality-filter.
+
+- **Pretraining** — `.txt` (one document per line, or the whole file as one
+  document) and/or `.parquet` with a configurable `text_column`.
+- **SFT** — `.parquet` rows or JSON-per-line `.txt`, mapped through
+  `prompt_template` + `completion_field`. Loss is computed on completion tokens
+  only; prompt tokens are masked out.
+
+---
+
+## Inference: export & chat
+
+Consolidate a trained run into a portable, self-contained model folder, then chat
 with it from the terminal:
 
 ```bash
-# 1. bundle the trained model into the local registry (~/.librarian-press/models/<name>)
+# bundle -> ~/.librarian-press/models/<name>/  (override with LIBRARIAN_PRESS_HOME)
 librarian-press export --config configs/run_both.json --name my-bot
 
-# 2. chat with it — streams tokens until you type /bye
+# stream tokens until you type /bye
 librarian-press chat my-bot
 
-# list everything you've exported
-librarian-press models
+librarian-press models     # list exported models
 ```
 
-`export` consolidates whatever the run produced into a single plain weights file
-(**LoRA/BitFit adapters are merged into the base**), copies the tokenizer, and
-writes a `bundle.json` with the model config + chat prompt template + generation
-defaults. The resulting folder needs nothing from the original run to chat with,
-so it's easy to copy or share. Override the source/checkpoint with
-`--from pretrain|sft` and `--checkpoint`, and the sampling defaults with
-`--temperature` / `--top-k` / `--max-new-tokens`. The registry location can be
-moved with the `LIBRARIAN_PRESS_HOME` environment variable.
+`export` merges **LoRA/BitFit adapters into the base weights**, writing a single
+plain weights file plus the tokenizer and a `bundle.json` (model config, chat
+prompt template, sampling defaults). The folder is fully standalone — copy or
+share it freely.
 
-All commands accept `--start-from <stage>` (data stages resume via per-stage
-manifests) and the train pipelines accept `--resume <checkpoint>`.
+---
 
-### Multi-GPU (DDP)
+## Multi-GPU (DDP)
 
 Launch any training command under `torchrun` to data-parallelize across GPUs:
 
 ```bash
-torchrun --nproc_per_node=4 --module librarian_press.cli.main pretrain --config configs/pretrain_130M.json
-torchrun --nproc_per_node=4 --module librarian_press.cli.main run      --config configs/run_both.json
+torchrun --nproc_per_node=4 --module librarian_press.cli.main \
+  pretrain --config configs/pretrain_130M.json
 ```
 
 Each GPU holds a full model copy; gradients all-reduce at the accumulation
 boundary, so the effective batch is `batch_size × grad_accum × num_gpus`. Data
-stages (ingest/tokenize/pack/prepare) and evaluation run on rank 0; only rank 0
-writes checkpoints and logs. Running without `torchrun` is unchanged single-GPU.
-DDP scales throughput — the model must still fit on one GPU (sharding/FSDP for
-larger-than-one-GPU models is not built in yet).
+stages and evaluation run on rank 0; only rank 0 writes checkpoints and logs.
+Running without `torchrun` is the unchanged single-GPU path. DDP scales
+throughput — the model must still fit on one GPU (FSDP/sharding is not built in).
 
-### Monitoring (Prometheus / Grafana)
+---
 
-Add `--metrics-port <port>` to any training or chat command to expose a
-Prometheus-style metrics endpoint (pull model, plain text exposition format — no
-`prometheus_client` dependency):
+## Monitoring
+
+Add `--metrics-port <port>` to any training or `chat` command to expose a
+Prometheus-style metrics endpoint — pull model, plain text exposition format, **no
+`prometheus_client` dependency**:
 
 ```bash
 librarian-press run  --config configs/run_both.json --metrics-port 9099
-librarian-press chat my-bot --metrics-port 9099
-# then scrape:  curl http://localhost:9099/metrics
+curl http://localhost:9099/metrics
 ```
 
-Point a Prometheus server (or Grafana Alloy/Agent) at `/metrics` and build your
-Grafana dashboard on top. Under DDP only rank 0 serves. You can also set the port
-via `LIBRARIAN_PRESS_METRICS_PORT` (and host via `LIBRARIAN_PRESS_METRICS_HOST`).
-
-Exposed series:
+Point Prometheus (or Grafana Alloy/Agent) at `/metrics` and dashboard it in
+Grafana. Under DDP only rank 0 serves. Configurable via
+`LIBRARIAN_PRESS_METRICS_PORT` / `LIBRARIAN_PRESS_METRICS_HOST`.
 
 | Metric | Type | Labels |
 |---|---|---|
@@ -106,24 +304,28 @@ Exposed series:
 | `librarian_inference_requests_total`, `librarian_inference_generated_tokens_total` | counter | `model` |
 | `librarian_inference_tokens_per_second`, `librarian_inference_latency_seconds` | gauge | `model` |
 
-## Data you provide
+---
 
-- **Pretraining**: `.txt` (one document per line, or whole-file) and/or `.parquet`
-  with a configurable `text_column`. Already cleaned — no quality filtering is done.
-- **SFT**: `.parquet` rows or JSON-per-line `.txt`, mapped via `prompt_template`
-  (e.g. `"Context: {context}\nQuestion: {question}\nAnswer:"`) and
-  `completion_field` (supports dotted/array fields like `answers.text[0]`).
-  Loss flows only through completion tokens.
+## Project layout
 
-## Config
+```text
+src/librarian_press/
+  cli/          command-line entrypoint
+  config/       JSON schema, loading, run paths
+  model/        GPT, attention, RoPE, RMSNorm, MLP, LoRA, build/load
+  tokenizer/    BPE training + loading
+  data/         ingest, shard, tokenize, pack, prepare_sft, datasets
+  pipeline/     manifests, atomic writers, cleanup, stage orchestration
+  training/     trainer, optimizer, scheduler, checkpoints
+  evaluation/   perplexity, generation metrics, router
+  inference/    sampling, generation, method-aware loading
+  serve/        export bundles, registry, chat REPL
+  metrics/      Prometheus-style registry + HTTP server
+  utils/        logging, device, distributed
+```
 
-One JSON, `mode ∈ {pretrain, sft, both}`, with shared `model` + `tokenizer`
-sections and per-mode `data`/`training` (and `finetune` for SFT). See
-[configs/](configs/) for runnable examples, including a CPU-only
-`run_dummy.json` for a fast end-to-end smoke test.
+---
 
-## Layout
+## License
 
-Everything for a run lives under `runs/<name>/`: ingested shards, manifests,
-the tokenizer, packed splits, checkpoints (`checkpoints/pretrain/`,
-`checkpoints/sft/<method>/`), and eval results.
+See [LICENSE](LICENSE).
