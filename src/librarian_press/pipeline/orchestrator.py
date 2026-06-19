@@ -121,6 +121,7 @@ def _train_pretrain(cfg: RunConfig, paths: RunPaths, resume, run_id, stage_log):
     trainer = Trainer(
         model, train_loader, val_loader, sec.training, ckpt_dir,
         method=None, meta=meta, run_name=cfg.name, run_id=run_id, seq_len=seq_len,
+        mode="pretrain",
     )
     if resume:
         trainer.step = load_checkpoint(model, trainer.optimizer, resume)
@@ -178,6 +179,7 @@ def _train_sft(cfg: RunConfig, paths: RunPaths, resume, run_id, stage_log):
         model, train_loader, val_loader, sec.training, ckpt_dir,
         method=sec.finetune.method, meta=meta,
         run_name=cfg.name, run_id=run_id, seq_len=seq_len,
+        mode="sft",
     )
     if resume:
         trainer.step = load_checkpoint(model, trainer.optimizer, resume,

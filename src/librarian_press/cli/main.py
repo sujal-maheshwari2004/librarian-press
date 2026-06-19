@@ -24,11 +24,27 @@ def _run_id() -> int:
     return int(os.environ.get("RUN_ID", 0)) or int(time.time())
 
 
+def _maybe_start_metrics(args, *, main_only: bool):
+    """Start the Prometheus-style /metrics server if requested (flag or env).
+    For distributed training only rank 0 serves (avoids port clashes)."""
+    port = getattr(args, "metrics_port", None) or int(os.environ.get("LIBRARIAN_PRESS_METRICS_PORT", "0")) or None
+    if not port:
+        return
+    if main_only:
+        from ..utils.distributed import is_main
+        if not is_main():
+            return
+    from ..metrics import start_metrics_server
+    host = getattr(args, "metrics_host", None) or os.environ.get("LIBRARIAN_PRESS_METRICS_HOST", "0.0.0.0")
+    start_metrics_server(port, host)
+
+
 def _cmd_pretrain(args):
     from ..pipeline.orchestrator import run_pretrain
 
     cfg = load_config(args.config)
     _require_mode(cfg, "pretrain")
+    _maybe_start_metrics(args, main_only=True)
     run_pretrain(cfg, RunPaths(cfg.name), start_from=args.start_from,
                  resume=args.resume, cleanup=args.cleanup, run_id=_run_id())
 
@@ -38,6 +54,7 @@ def _cmd_sft(args):
 
     cfg = load_config(args.config)
     _require_mode(cfg, "sft")
+    _maybe_start_metrics(args, main_only=True)
     run_sft(cfg, RunPaths(cfg.name), start_from=args.start_from,
             resume=args.resume, run_id=_run_id())
 
@@ -48,6 +65,7 @@ def _cmd_run(args):
     cfg = load_config(args.config)
     if cfg.mode != "both":
         raise SystemExit(f"`run` requires mode='both' (got {cfg.mode!r})")
+    _maybe_start_metrics(args, main_only=True)
     run_all(cfg, RunPaths(cfg.name), cleanup=args.cleanup, run_id=_run_id())
 
 
@@ -129,6 +147,7 @@ def _cmd_export(args):
 def _cmd_chat(args):
     from ..serve.chat import run_chat
 
+    _maybe_start_metrics(args, main_only=False)
     run_chat(args.model)
 
 
@@ -153,6 +172,13 @@ def _require_mode(cfg, needed):
             )
 
 
+def _add_metrics_args(parser):
+    parser.add_argument("--metrics-port", type=int, default=None, dest="metrics_port",
+                        help="expose Prometheus-style metrics at http://host:PORT/metrics")
+    parser.add_argument("--metrics-host", default=None, dest="metrics_host",
+                        help="bind host for the metrics server (default 0.0.0.0)")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="librarian-press",
                                 description="Pretrain and fine-tune Librarian-family GPT models from clean local data")
@@ -163,17 +189,20 @@ def build_parser() -> argparse.ArgumentParser:
     pt.add_argument("--start-from", choices=PRETRAIN_STAGES, default="ingest_pre")
     pt.add_argument("--resume", default=None)
     pt.add_argument("--cleanup", action="store_true")
+    _add_metrics_args(pt)
     pt.set_defaults(func=_cmd_pretrain)
 
     sf = sub.add_parser("sft", help="run the supervised fine-tuning pipeline")
     sf.add_argument("--config", required=True)
     sf.add_argument("--start-from", choices=SFT_STAGES, default="ingest_sft")
     sf.add_argument("--resume", default=None)
+    _add_metrics_args(sf)
     sf.set_defaults(func=_cmd_sft)
 
     rn = sub.add_parser("run", help="pretrain then SFT end-to-end (mode=both)")
     rn.add_argument("--config", required=True)
     rn.add_argument("--cleanup", action="store_true")
+    _add_metrics_args(rn)
     rn.set_defaults(func=_cmd_run)
 
     tk = sub.add_parser("tokenizer", help="train the tokenizer only")
@@ -207,6 +236,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     ch = sub.add_parser("chat", help="chat with an exported model (Ollama-style REPL)")
     ch.add_argument("model", help="exported model name")
+    _add_metrics_args(ch)
     ch.set_defaults(func=_cmd_chat)
 
     ls = sub.add_parser("models", help="list exported models")

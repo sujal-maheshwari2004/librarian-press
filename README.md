@@ -79,6 +79,33 @@ writes checkpoints and logs. Running without `torchrun` is unchanged single-GPU.
 DDP scales throughput — the model must still fit on one GPU (sharding/FSDP for
 larger-than-one-GPU models is not built in yet).
 
+### Monitoring (Prometheus / Grafana)
+
+Add `--metrics-port <port>` to any training or chat command to expose a
+Prometheus-style metrics endpoint (pull model, plain text exposition format — no
+`prometheus_client` dependency):
+
+```bash
+librarian-press run  --config configs/run_both.json --metrics-port 9099
+librarian-press chat my-bot --metrics-port 9099
+# then scrape:  curl http://localhost:9099/metrics
+```
+
+Point a Prometheus server (or Grafana Alloy/Agent) at `/metrics` and build your
+Grafana dashboard on top. Under DDP only rank 0 serves. You can also set the port
+via `LIBRARIAN_PRESS_METRICS_PORT` (and host via `LIBRARIAN_PRESS_METRICS_HOST`).
+
+Exposed series:
+
+| Metric | Type | Labels |
+|---|---|---|
+| `librarian_train_loss`, `librarian_val_loss` | gauge | `run`, `mode` |
+| `librarian_train_learning_rate`, `librarian_train_grad_norm`, `librarian_train_step` | gauge | `run`, `mode` |
+| `librarian_train_tokens_per_second`, `librarian_gpu_memory_bytes` | gauge | `run`, `mode` |
+| `librarian_train_steps_total` | counter | `run`, `mode` |
+| `librarian_inference_requests_total`, `librarian_inference_generated_tokens_total` | counter | `model` |
+| `librarian_inference_tokens_per_second`, `librarian_inference_latency_seconds` | gauge | `model` |
+
 ## Data you provide
 
 - **Pretraining**: `.txt` (one document per line, or whole-file) and/or `.parquet`

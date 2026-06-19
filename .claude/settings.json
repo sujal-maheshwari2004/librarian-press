@@ -23,7 +23,8 @@
       "Bash(PYTHONPATH=src python -c \"import librarian_press; from librarian_press.cli.main import build_parser; print\\('import OK', librarian_press.__version__\\)\")",
       "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -m librarian_press.cli.main run --config configs/run_dummy.json)",
       "Bash(rm -rf runs .lp_home)",
-      "Bash(PYTHONPATH=src python -c \"from librarian_press.serve import export_model, run_chat, list_models; from librarian_press.cli.main import build_parser; build_parser\\(\\); print\\('OK'\\)\")"
+      "Bash(PYTHONPATH=src python -c \"from librarian_press.serve import export_model, run_chat, list_models; from librarian_press.cli.main import build_parser; build_parser\\(\\); print\\('OK'\\)\")",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -m librarian_press.cli.main pretrain --config configs/pretrain_dummy.json --metrics-port 9097)"
     ]
   }
 }

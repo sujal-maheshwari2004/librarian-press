@@ -7,12 +7,15 @@ as they're generated, and keeps going until you type /bye, exit, or hit Ctrl-D.
 
 from __future__ import annotations
 
+import time
+
 import torch
 
 from ..config.schema import ModelConfig
 from ..data.prepare_sft import render_prompt
 from ..inference.load_model import load_model
 from ..inference.sampler import sample_next_token
+from ..metrics import record_inference
 from ..tokenizer.load import load_tokenizer, special_ids
 from ..utils.device import resolve_device
 from .registry import load_bundle
@@ -28,12 +31,13 @@ def _build_prompt(user_text: str, template: str | None, field: str | None) -> st
 
 
 @torch.no_grad()
-def _stream(model, tokenizer, prompt, *, eos_id, device, max_seq_len,
+def _stream(model, tokenizer, prompt, *, model_name, eos_id, device, max_seq_len,
             temperature, top_k, max_new_tokens):
     ids = tokenizer.encode(prompt).ids
     idx = torch.tensor(ids, dtype=torch.long).unsqueeze(0).to(device)
     generated: list[int] = []
     prev = ""
+    t0 = time.perf_counter()
     for _ in range(max_new_tokens):
         logits = model(idx[:, -max_seq_len:])[:, -1, :]
         if temperature <= 0:
@@ -50,6 +54,7 @@ def _stream(model, tokenizer, prompt, *, eos_id, device, max_seq_len,
         prev = text
         idx = torch.cat([idx, nxt], dim=1)
     print()
+    record_inference(model_name, len(generated), time.perf_counter() - t0)
 
 
 def run_chat(name: str, device: str | None = None):
@@ -85,7 +90,7 @@ def run_chat(name: str, device: str | None = None):
             break
         prompt = _build_prompt(user, template, field)
         print("model> ", end="", flush=True)
-        _stream(model, tokenizer, prompt, eos_id=eos_id, device=device,
+        _stream(model, tokenizer, prompt, model_name=name, eos_id=eos_id, device=device,
                 max_seq_len=max_seq_len, temperature=temperature,
                 top_k=top_k, max_new_tokens=max_new_tokens)
 

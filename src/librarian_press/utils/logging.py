@@ -16,6 +16,7 @@ import torch
 from tqdm import tqdm
 
 from .distributed import is_main
+from ..metrics import record_train, record_val
 
 GREEN = "\033[92m"
 BLUE = "\033[94m"
@@ -138,12 +139,14 @@ class TrainingLogger(_BaseSender):
         batch_size: int,
         run_name: str | None = None,
         run_id: int | None = None,
+        mode: str = "train",
     ):
         super().__init__()
         self.enabled = is_main()
         self.seq_len = seq_len
         self.batch_size = batch_size
         self.run_name = run_name
+        self.mode = mode
         self.run_id = run_id or int(time.time())
         self.last_time = time.time()
         self.tokens_seen = 0
@@ -182,6 +185,7 @@ class TrainingLogger(_BaseSender):
             f"{GREEN}TRAIN{RESET} step {step:06d} | loss {loss:6.4f} | "
             f"lr {lr:.2e} | grad {grad:5.2f} | tok/s {tok_s:6d} | gpu {gpu:4.2f}GB"
         )
+        record_train(self.run_name, self.mode, step, loss, lr, grad, tok_s, gpu * 1e9)
 
     def eval(self, step, val_loss):
         if not self.enabled:
@@ -191,6 +195,7 @@ class TrainingLogger(_BaseSender):
             "step": step, "val_loss": float(val_loss), "timestamp": time.time(),
         })
         tqdm.write(f"{BLUE}EVAL {RESET} step {step:06d} | val_loss {val_loss:6.4f}")
+        record_val(self.run_name, self.mode, val_loss)
 
     def checkpoint(self, step, val_loss):
         if not self.enabled:

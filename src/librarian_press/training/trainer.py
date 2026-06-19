@@ -65,6 +65,7 @@ class Trainer:
         run_name: str | None = None,
         run_id: int | None = None,
         seq_len: int = 512,
+        mode: str = "train",
     ):
         self.device = training_cfg.device
         self.raw_model = model.to(self.device)
@@ -96,6 +97,7 @@ class Trainer:
             batch_size=training_cfg.batch_size,
             run_name=run_name,
             run_id=run_id,
+            mode=mode,
         )
         self.progress = tqdm(
             total=training_cfg.total_steps,
