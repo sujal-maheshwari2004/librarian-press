@@ -1,0 +1,67 @@
+{
+  "name": "librarian-dummy",
+  "mode": "both",
+  "model": {
+    "vocab_size": 4000,
+    "dim": 64,
+    "n_layers": 2,
+    "n_heads": 2,
+    "hidden_dim": 128,
+    "max_seq_len": 64,
+    "dropout": 0.0,
+    "rope_theta": 10000.0,
+    "tie_embeddings": true
+  },
+  "tokenizer": {
+    "path": "runs/librarian-dummy/tokenizer/tokenizer.json",
+    "train_if_missing": true,
+    "vocab_size": 4000,
+    "min_frequency": 2,
+    "special_tokens": ["<pad>", "<bos>", "<eos>", "<unk>"]
+  },
+  "pretrain": {
+    "data": {
+      "inputs": ["tests/fixtures/pretrain/*.txt", "tests/fixtures/pretrain/*.parquet"],
+      "format": "auto",
+      "text_column": "text",
+      "txt_granularity": "line",
+      "seq_len": 64,
+      "val_frac": 0.25,
+      "test_frac": 0.0,
+      "docs_per_shard": 40
+    },
+    "training": {
+      "lr": 3e-4, "min_lr": 3e-5,
+      "warmup_steps": 5, "total_steps": 40,
+      "batch_size": 8, "grad_accum": 1,
+      "weight_decay": 0.1, "mixed_precision": false,
+      "eval_interval": 20, "save_interval": 20, "device": "cpu"
+    }
+  },
+  "sft": {
+    "finetune": {
+      "method": "lora",
+      "base_checkpoint": null,
+      "lora": { "rank": 8, "alpha": 16, "dropout": 0.05 },
+      "eval_metric": "f1"
+    },
+    "data": {
+      "inputs": {
+        "train": ["tests/fixtures/sft/train.jsonl"],
+        "val": ["tests/fixtures/sft/val.parquet"]
+      },
+      "format": "auto",
+      "prompt_template": "Q: {question}\nA:",
+      "completion_field": "answer",
+      "max_prompt_len": 32,
+      "max_completion_len": 16
+    },
+    "training": {
+      "lr": 3e-4, "min_lr": 3e-5,
+      "warmup_steps": 5, "total_steps": 30,
+      "batch_size": 4, "grad_accum": 1,
+      "weight_decay": 0.01, "mixed_precision": false,
+      "eval_interval": 15, "save_interval": 15, "device": "cpu"
+    }
+  }
+}

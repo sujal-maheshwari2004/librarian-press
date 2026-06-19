@@ -1,0 +1,13 @@
+# run artifacts (regeneratable)
+runs/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+dist/
+build/
+
+# uv
+.uv/
