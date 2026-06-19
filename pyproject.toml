@@ -1,7 +1,7 @@
 [project]
-name = "librarian"
+name = "librarian-press"
 version = "0.1.0"
-description = "Config-driven framework to pretrain and fine-tune Librarian GPT models from local clean data"
+description = "Config-driven framework to pretrain and fine-tune Librarian-family GPT models from clean local data"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
@@ -15,11 +15,12 @@ dependencies = [
 ]
 
 [project.scripts]
-librarian = "librarian.cli.main:main"
+librarian-press = "librarian_press.cli.main:main"
+lpress = "librarian_press.cli.main:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/librarian"]
+packages = ["src/librarian_press"]

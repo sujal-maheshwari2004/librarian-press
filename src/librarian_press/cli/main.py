@@ -1,12 +1,12 @@
 """
-librarian CLI
+librarian-press CLI  (command: `librarian-press` or short alias `lpress`)
 
-  librarian pretrain  --config x.json [--start-from S] [--resume CKPT] [--cleanup]
-  librarian sft       --config y.json [--start-from S] [--resume CKPT]
-  librarian run       --config z.json [--cleanup]          # pretrain -> sft
-  librarian tokenizer --config x.json                       # train tokenizer only
-  librarian eval      --config c.json [--checkpoint CKPT]
-  librarian infer     --config c.json --checkpoint CKPT [--prompt "..."]
+  librarian-press pretrain  --config x.json [--start-from S] [--resume CKPT] [--cleanup]
+  librarian-press sft       --config y.json [--start-from S] [--resume CKPT]
+  librarian-press run       --config z.json [--cleanup]          # pretrain -> sft
+  librarian-press tokenizer --config x.json                       # train tokenizer only
+  librarian-press eval      --config c.json [--checkpoint CKPT]
+  librarian-press infer     --config c.json --checkpoint CKPT [--prompt "..."]
 """
 
 from __future__ import annotations
@@ -125,8 +125,8 @@ def _require_mode(cfg, needed):
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="librarian",
-                                description="Pretrain and fine-tune Librarian GPT models from clean local data")
+    p = argparse.ArgumentParser(prog="librarian-press",
+                                description="Pretrain and fine-tune Librarian-family GPT models from clean local data")
     sub = p.add_subparsers(dest="command", required=True)
 
     pt = sub.add_parser("pretrain", help="run the pretraining pipeline")

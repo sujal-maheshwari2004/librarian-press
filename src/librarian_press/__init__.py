@@ -1,4 +1,4 @@
-"""Librarian — a config-driven framework to pretrain and fine-tune Librarian GPT models.
+"""librarian-press — a config-driven framework to pretrain and fine-tune Librarian-family GPT models.
 
 One package, two modes:
   - pretrain : raw text (parquet/txt) -> tokenizer -> tokenize -> pack -> train -> eval

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import torch, numpy, pyarrow, tokenizers; print\\('torch', torch.__version__\\); print\\('numpy', numpy.__version__\\); print\\('pyarrow', pyarrow.__version__\\); print\\('tokenizers', tokenizers.__version__\\)\")",
+      "Bash(PYTHONPATH=src python -c ' *)",
+      "Bash(rm -rf runs)",
+      "Bash(PYTHONPATH=src python -m librarian.cli.main run --config configs/run_dummy.json)",
+      "Bash(PYTHONPATH=src python -)",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -m librarian.cli.main run --config configs/run_dummy.json)",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -m librarian.cli.main pretrain --config configs/pretrain_dummy.json)",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -m librarian.cli.main sft --config configs/sft_dummy.json)",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -m librarian.cli.main infer --config configs/pretrain_dummy.json --checkpoint runs/librarian-dummy-pre/checkpoints/pretrain/last.pt --prompt \"the quick brown\" --max-new-tokens 12)",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -m librarian.cli.main infer --config configs/sft_dummy.json --checkpoint runs/librarian-dummy-sft/checkpoints/sft/lora/best.pt --prompt \"Q: hello\\\\nA:\" --max-new-tokens 12)",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -m librarian.cli.main eval --config configs/sft_dummy.json)",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -m librarian.cli.main pretrain --config configs/pretrain_dummy.json --start-from pack)",
+      "Bash(PYTHONPATH=src python -c \"import librarian.cli.main, librarian.pipeline.orchestrator, librarian.training.trainer, librarian.utils.distributed; print\\('OK'\\)\")",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -m torch.distributed.run --nproc_per_node=2 --standalone --module librarian.cli.main pretrain --config configs/pretrain_dummy.json)",
+      "Bash(USE_LIBUV=0 PYTHONIOENCODING=utf-8 PYTHONPATH=src python -m torch.distributed.run --nproc_per_node=2 --standalone --module librarian.cli.main pretrain --config configs/pretrain_dummy.json)",
+      "Bash(USE_LIBUV=0 PYTHONIOENCODING=utf-8 PYTHONPATH=src python tests/_ddp_smoke.py)",
+      "Bash(CUDA_VISIBLE_DEVICES=\"\" USE_LIBUV=0 PYTHONIOENCODING=utf-8 PYTHONPATH=src python tests/_ddp_smoke.py)",
+      "Bash(sed -i 's/CUDA_VISIBLE_DEVICES\"\\\\] = \"\"/CUDA_VISIBLE_DEVICES\"] = \"-1\"/; s/CUDA_VISIBLE_DEVICES=\"\",/CUDA_VISIBLE_DEVICES=\"-1\",/' tests/_ddp_smoke.py)",
+      "Bash(CUDA_VISIBLE_DEVICES=\"-1\" USE_LIBUV=0 PYTHONIOENCODING=utf-8 PYTHONPATH=src python tests/_ddp_smoke.py)",
+      "Bash(PYTHONPATH=src python -c \"import librarian_press; from librarian_press.cli.main import build_parser; print\\('import OK', librarian_press.__version__\\)\")",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -m librarian_press.cli.main run --config configs/run_dummy.json)"
+    ]
+  }
+}

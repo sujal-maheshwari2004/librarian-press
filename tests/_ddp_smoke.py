@@ -18,7 +18,7 @@ def worker(rank: int, world_size: int):
         RANK=str(rank), WORLD_SIZE=str(world_size), LOCAL_RANK=str(rank),
         MASTER_ADDR="127.0.0.1", MASTER_PORT="29519",
     )
-    from librarian.cli.main import main
+    from librarian_press.cli.main import main
     main(["pretrain", "--config", "configs/pretrain_dummy.json"])
 
 

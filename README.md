@@ -1,9 +1,11 @@
-# Librarian
+# librarian-press
 
-A config-driven framework to **pretrain** and **fine-tune** Librarian GPT models
-from your own cleaned data. You bring clean **Parquet/`.txt`** files and one JSON
-config; the framework handles tokenizer training, tokenization, packing, training,
-evaluation, and inference.
+A config-driven framework that turns clean data into trained LLMs. Like the
+printing press did for books, `librarian-press` puts **pretraining and
+fine-tuning of Librarian-family GPT models — at virtually any size — in
+anyone's hands**: you bring clean **Parquet/`.txt`** files and one JSON config,
+and it handles tokenizer training, tokenization, packing, training, evaluation,
+and inference.
 
 Pretraining and SFT are separable: run one, the other, or both end-to-end.
 
@@ -13,22 +15,24 @@ Pretraining and SFT are separable: run one, the other, or both end-to-end.
 uv sync            # or: pip install -e .
 ```
 
+This installs the `librarian-press` command (short alias: `lpress`).
+
 ## Usage
 
 ```bash
 # Pretrain a base model from raw text
-librarian pretrain --config configs/pretrain_130M.json
+librarian-press pretrain --config configs/pretrain_130M.json
 
 # Supervised fine-tune an existing base model
-librarian sft --config configs/sft_qa_lora.json
+librarian-press sft --config configs/sft_qa_lora.json
 
 # Both, end-to-end (SFT auto-consumes the pretrain checkpoint + tokenizer)
-librarian run --config configs/run_both.json     # config mode must be "both"
+librarian-press run --config configs/run_both.json     # config mode must be "both"
 
-# Other commands
-librarian tokenizer --config <cfg>                # train tokenizer only
-librarian eval      --config <cfg> [--checkpoint CKPT]
-librarian infer     --config <cfg> --checkpoint CKPT [--prompt "..."]
+# Other commands  (lpress is a shorthand for librarian-press)
+lpress tokenizer --config <cfg>                # train tokenizer only
+lpress eval      --config <cfg> [--checkpoint CKPT]
+lpress infer     --config <cfg> --checkpoint CKPT [--prompt "..."]
 ```
 
 All commands accept `--start-from <stage>` (data stages resume via per-stage
@@ -39,8 +43,8 @@ manifests) and the train pipelines accept `--resume <checkpoint>`.
 Launch any training command under `torchrun` to data-parallelize across GPUs:
 
 ```bash
-torchrun --nproc_per_node=4 --module librarian.cli.main pretrain --config configs/pretrain_130M.json
-torchrun --nproc_per_node=4 --module librarian.cli.main run      --config configs/run_both.json
+torchrun --nproc_per_node=4 --module librarian_press.cli.main pretrain --config configs/pretrain_130M.json
+torchrun --nproc_per_node=4 --module librarian_press.cli.main run      --config configs/run_both.json
 ```
 
 Each GPU holds a full model copy; gradients all-reduce at the accumulation
